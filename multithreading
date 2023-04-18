@@ -1,0 +1,94 @@
+#include <iostream>
+#include <algorithm>
+#include <cstdlib>
+#include <ctime>
+#include <pthread.h>
+using namespace std;
+
+struct thread_args {
+  int* arr;
+  int left;
+  int right;
+  int depth;
+};
+
+void quicksort(int arr[], int left, int right, int depth);
+
+void* quicksort_thread(void* arg) {
+  thread_args* args = static_cast<thread_args*>(arg);
+  quicksort(args->arr, args->left, args->right, args->depth + 1);
+  delete args;
+  pthread_exit(NULL);
+}
+
+void quicksort(int arr[], int left, int right, int depth) {
+  if (left >= right) {
+    return;
+  }
+  if (depth >= 4) {
+    // If the recursion depth exceeds a certain threshold, use sequential sort
+    std::sort(arr + left, arr + right + 1);
+    return;
+  }
+  int i = left, j = right;
+  int tmp;
+  int pivot = arr[(left + right) / 2];
+  while (i <= j) {
+    while (arr[i] < pivot)
+      i++;
+    while (arr[j] > pivot)
+      j--;
+    if (i <= j) {
+      tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+      i++;
+      j--;
+    }
+  }
+  // Create threads for left and right partitions
+  pthread_t threads[2];
+  int num_threads = 0;
+  if (left < j) {
+    thread_args* args = new thread_args();
+    args->arr = arr;
+    args->left = left;
+    args->right = j;
+    args->depth = depth;
+    pthread_create(&threads[num_threads++], NULL, quicksort_thread, args);
+  }
+  if (i < right) {
+    thread_args* args = new thread_args();
+    args->arr = arr;
+    args->left = i;
+    args->right = right;
+    args->depth = depth;
+    pthread_create(&threads[num_threads++], NULL, quicksort_thread, args);
+  }
+  // Join threads
+  for (int i = 0; i < num_threads; i++) {
+    pthread_join(threads[i], NULL);
+  }
+}
+
+int main() {
+  const int SIZE = 100000;
+  int arr[SIZE];
+  // Fill array with random integers
+  srand(time(NULL));
+  for (int i = 0; i < SIZE; i++) {
+    arr[i] = rand() % 100;
+  }
+  // Sort array and measure time
+  clock_t start = clock();
+  quicksort(arr, 0, SIZE - 1, 0);
+  clock_t end = clock();
+  double elapsed_time = double(end - start) / CLOCKS_PER_SEC;
+  // Print sorted array and time taken to sort
+  cout << "Sorted array:" << endl;
+  for (int i = 0; i < SIZE; i++) {
+    cout << arr[i] << " ";
+  }
+  cout << endl << "Time taken to sort: " << elapsed_time << " seconds" << endl;
+  return 0;
+}
